@@ -37,7 +37,7 @@ server.get('/test', (req, res) => {
 
     myTestfunction(req,res).then( (val) => {
         res.send(val);
-    });
+       });
 });
 
 /* Reload App from excel  */
@@ -59,7 +59,7 @@ server.get('/', (req, res) => {
  * get the other parameters
  * Search response and
  * prepare reply
- * */
+  * */
 server.post('/ask', (req, res) => {
 
     h.ask(req,res).then( (val) => {
@@ -78,16 +78,27 @@ server.post('/ask', (req, res) => {
  * xlsx file must have a fixed structure -
  * It sets up the Json files and then sips them:
  *
- * http://localhost:8000/readxlsx?fid=16n34iM04Ah6IlhYvFRa_7nTLQBOg2tFQ  1 ver
- * http://localhost:8000/newDFArchive?driveid=1F0QMZeEUSYJbKGvvTOcfSn8jZE9dnLBq
- * https://drive.google.com/file/d/1F0QMZeEUSYJbKGvvTOcfSn8jZE9dnLBq/view?usp=sharing
+ * http://localhost:8000/newDFArchive?driveid=16n34iM04Ah6IlhYvFRa_7nTLQBOg2tFQ
+ * http://localhost:8000/newDFArchive?driveid=1Dqg_21UcxMWALva4GWMNjCEcPipcToAC
  *
- *
+  *
  * */
 
 server.get('/newDFArchive', (req, res) => {
     h.CreateArchive(req, res);
 });
+
+server.get('/reloadAll', (req, res) => {
+    h.loadAllApps().then( (status) => {
+        res.send( "OK, all done"); // status is an array
+        }
+        , reason => {
+        console.log(reason);
+            res.send( `Error: ${reason}`);
+    });
+
+});
+
 
 
 
@@ -97,3 +108,5 @@ server.listen((process.env.PORT || 8000), () => {
     console.log(
         `Server is up and running on port: ${(process.env.PORT || 8000)}` );
 });
+
+
