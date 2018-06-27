@@ -1,0 +1,5 @@
+{
+        "ABC":{ "driveid":"1r2YQp2THrb4I4ygRvwFzUGIs-mzBmpZE", "appname":"GDG1", "appdes":"ciao", "locale":["en","it"]} 
+       ,"ABC2":{ "driveid":"1r2YQp2THrb4I4ygRvwFzUGIs-mzBmpZE", "appname":"GDG2", "appdes":"ciao", "locale":["en","it"]}
+       	, "gdgroma":{ "driveid":"16jVFm7gAlr2e3IaxaTXAd4OTT2rd4DDR", "appname":"gdgagent", "appdes":"GDG Agent", "locale":["en","it"]}
+}
