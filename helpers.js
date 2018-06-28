@@ -97,6 +97,7 @@ var me = {
                             apps[appcode].data = _.union(apps[appcode].data,sheetData.map((riga)=> _.extend(riga,{"locale":locale })) );
                             apps[appcode].fieldslist=_.union(apps[appcode].fieldslist, fieldslist);
                             apps[appcode].paramlist=_.union(apps[appcode].paramlist, paramlist);
+                            //console.log(apps[appcode].data);
 
 
                         });
@@ -119,14 +120,15 @@ var me = {
 
         console.log(parms);
 
-        let workData=apps[query.appcode].data[query.locale];
+        var workData=apps[query.appcode].data[query.locale||"en"];
 
         console.log(workData);
 
         var recurF=function() {
-            if (!parms.length) return workData;
+            if (!parms.length) return (_.isArray(workData)) ? workData:  _.flatten(_.values(workData)) ;
 
-            let workparm=parms.shift()[0]; workData=workData[workparm]||workData;
+            let workparm=parms.shift(); if (_.isArray(workparm)) workparm=workparm[0];
+            workData=(workparm=="any" || !workData[workparm]) ? _.reduce(workData, (memo, group)=>_.extend(memo,group),{}) : workData[workparm];
             return recurF();
         };
         return recurF();
@@ -166,11 +168,14 @@ var me = {
        *
        * */
 
-        let query=this.getmyQuery(req);
+        let query=me.getmyQuery(req);
 
         console.log(JSON.stringify(query));
         let responses= me.queryTexts(query); // todo add language and functions
         let isArray= _.isArray(responses); // todo add language and functions
+
+        /* Test */
+        if (!query.version) return me.getPromiseresolved(responses);
 
         /* null Response: fallback todo */
 
