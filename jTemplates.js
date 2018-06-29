@@ -251,7 +251,7 @@ const T= {
         }
     }
 
-    , carouselItem :  {
+    , carouselItem_1 :  {
     "title": "Title of item 1",
     "description": "Description of item 1",
     "footer": "Item 1 footer",
@@ -263,7 +263,30 @@ const T= {
         "url": "https://www.google.com",
         "urlTypeHint": "URL_TYPE_HINT_UNSPECIFIED"
     }
-}
+},
+
+
+
+
+            basicCard_1 : {
+              "title": "Card Title",
+              "image": {
+                "url": "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png",
+                "accessibilityText": "Google Logo"
+              },
+              "buttons": [
+                {
+                  "title": "Button Title",
+                  "openUrlAction": {
+                    "url": "https://www.google.com"
+                  }
+                }
+              ],
+              "imageDisplayOptions": "WHITE"
+            }
+          
+
+
 
 };
 
