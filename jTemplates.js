@@ -3,6 +3,7 @@
  * Templates JSON for various appls
  */
 const uuid = require('uuid/v4');
+const _ = require ('underscore');
 
 const T= {
     agent: {
@@ -264,15 +265,13 @@ const T= {
         "urlTypeHint": "URL_TYPE_HINT_UNSPECIFIED"
     }
 },
-
-
-
-
             basicCard_1 : {
               "title": "Card Title",
+              "subtitle": "",
+               "formattedText": "",
               "image": {
                 "url": "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png",
-                "accessibilityText": "Google Logo"
+                "accessibilityText": "Google Assistant"
               },
               "buttons": [
                 {
@@ -419,36 +418,67 @@ module.exports = {
 
                 break;}
 
-            /* Default Welcome Intent - very simple */
+            /* Default Welcome Intent - very simple - messages + suggestions (bottons in Assistant) */
 
             case (sheetName.search("WELCOMEINTENT-DEF")==0): {
                 let workJSON = JSON.parse(JSON.stringify(me.get('def_welcint')));
 
                 workJSON.id = uuid();
 
-                // OLD without Lang mgmt
-                // workJSON.responses[0].messages[0].speech = sheetsRows;
 
 
-
-                // new WITH lang mgmt **********
-                var messageS = {};
+                /* Message and suggestions with locales
+                 */
+                var messageS = {}, suggestions={};
 
                 sheetsRows.forEach( (srow) => {
-                //console.log(srow);
+                    //console.log(srow);
 
                     Object.keys(srow).forEach(function (key) {
+                        // langualge todo check
+                        let currLang =key.slice(-2).toLowerCase();
 
-                      //console.log(key);
-                      //console.log(srow[key]);
 
-                      var currLang = key.replace("WelcomeSentences_",""); 
-                      if (!Array.isArray(messageS[currLang])) { messageS[currLang] = []; } // gestione nuovo oggetto, primo giro.
-                      messageS[currLang].push(srow[key]);
+                        // Welcome Sentence in messages
+                        if (key.toLowerCase().indexOf("welcomesentences_")>=0) {
+
+                            if (!Array.isArray(messageS[currLang])) { messageS[currLang] = []; } // gestione nuovo oggetto, primo giro.
+                            messageS[currLang].push(srow[key]);
+                        }
+
+                        // Suggestions
+                        if (key.toLowerCase().indexOf("suggestions_")>=0) {
+                            const wsuggestions=srow[key].split(",").map( csug => { return {"title":csug.trim()}});
+                            suggestions[currLang]=[...suggestions[currLang]||[], ...wsuggestions];
+                        }
                     });
-                });
 
 
+                }); // end loop
+
+                if (!_.isEmpty(suggestions)) {
+                    let mytempl=`{"type": "suggestion_chips","platform": "google", "lang": "$[this.locale]$", "suggestions": 0 }` ;
+                    let dyntempl=function(templateString, templateVars) {
+                        let escF = function escapeRegExp(str) {
+                            return str.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
+                        };
+                        // replace
+                        const newT = templateString.replace(new RegExp(escF("$["), 'g'), "${").replace(new RegExp(escF("]$"), 'g'), "}");
+                        return new Function("return `" + newT + "`;").call(templateVars);
+                    }
+
+                    // Suggestions
+                    _.each(suggestions, (sugroup,locale) => {
+                        let mynewjson=JSON.parse(dyntempl(mytempl,{"locale":locale}));
+                        mynewjson.suggestions=_.uniq(sugroup);
+
+                        workJSON.responses[0].messages.push(mynewjson);
+
+                    });
+                }
+
+
+                /* end insert  */
                 Object.keys(messageS).forEach(function (key) {
 
                 var finalJson = {"type":0, "lang":"", "speech":[]};

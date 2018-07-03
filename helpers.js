@@ -89,7 +89,7 @@ var me = {
                         const fieldslist=_.union(_.flatten(_.map(sheetData, (row) => _.keys(row)),true));
 
                         /* Parameters must begin with P_*/
-                        const paramlist = _.reject(fieldslist, (value) => (value.indexOf("P_")!=0));
+                        const paramlist = _.reject(fieldslist, (value) => (value.toUpperCase().indexOf("P_")!=0));
                         let locale = sheetname.slice(-2);
                         /* if no multicode --> default language*/
                         if (config.APPS[appcode].locale.indexOf(locale)<0) locale=config.APPS[appcode].locale[0];
@@ -153,193 +153,133 @@ var me = {
 
     , ask: function(req, res) {
 
-        /*
-         * POST: body example ABC app
-         { "id": "6b0cf303-dd0d-463a-b87b-f778f713201d",
-         "timestamp": "2018-06-18T11:32:50.408Z",
-         "lang": "en",
-         "result":
-         { "source": "agent",
-         "resolvedQuery": "Google events",
-         "speech": "",
-         "action": "giveCourse",
-         "parameters": {
-         "P_GROUP": "GOOGLE"
-         , "P_TYPE": "CORSI"
-         , "appcode": "ABC"
-         },
-         "contexts": [
-         {
-         "name": "userdata",
-         "parameters": {"appcode": "ABC"},
-         "lifespan": 0
-         }
-         ],
-         "metadata": {},
-         "fulfillment": {},
-         "score": 1 }
-         }
-         *
-         * */
+        /* transform the request in a more agile object */
 
         let query=me.getmyQuery(req);
 
-        console.log(JSON.stringify(query));
-        let responses= me.queryTexts(query); // todo add language and functions
-        let isArray= _.isArray(responses); // todo add language and functions
+        // console.log(JSON.stringify(query));
+        let responses= me.queryTexts(query); // Get responses Object
+        if (!_.isArray(responses)) responses=[responses];
+        let isMultiple= (responses.length>1);
 
         /* null Response: fallback todo */
 
         /* Test */
-        if (!query.version) return me.getPromiseresolved(responses);
+        //if (req.method=="GET" || !query.version) return me.getPromiseresolved(responses); // todo modify with method in or
 
         /* find template out from jtemplates
          * casi: array e singola risposta
          * source - agent e google todo add others
+         *
+         * basicResponse_ contain the base response - type management source + array
          * */
 
         /* let template=   jTemplates.get(`response_${query.source}_${query.version}`); //response_agent_1
          let templatedett=  (isArray) ?  jTemplates.get(`responseD_${query.source}_${query.version}`) :null; //responseD_agent_1
          */
         // To avoid appending of responses inside template object.
-        let myresp =  JSON.parse( JSON.stringify(jTemplates.get(`basicResponse_${query.version}`)));
+        //let myresp =  JSON.parse( JSON.stringify(jTemplates.get(`basicResponse_${query.version||1}`)));
+        let myresp =  jTemplates.get(`basicResponse_${query.version||1}`);
+
+        myresp.speech=responses[0].text2speech;
+        myresp.displayText=`${responses[0].text2speech} ${responses[0].link}`;
+
+        let myiden=`${(isMultiple) ? "M":"S"}-${query.source||"agent"}-v${query.version||1}`;
+
+
+
 
         /* merge data out + additional functions  */
 
-        // console.log(JSON.stringify(responses));
+        let Fresp={
 
-        if (isArray) {
+              /* minimal result DialogFlow text 1*/
+              "S-agent-v1" : function() {
+                  delete myresp.data;
+                  delete myresp.messages;
+              }
+            /* DialogFlow text multiple*/
+            , "M-agent-v1" : function() {
 
-            /*Per ora, gestione di array ma con "mono" valore  --> [google] [event] - check in "queryTexts" */
+                //myresp.messages[0].speech=responses[0].text2speech;
+                let CompleteMsg="";
 
+                responses.forEach( robj => {
+                    CompleteMsg+=` ${robj.TITLE}: ${robj.text2speech}. 
+`;
 
-            // For every "record" retrieved as response... loop and add
+                });
+                myresp.speech=CompleteMsg;
+                myresp.messages.push({ "type": 0, "speech": CompleteMsg });
+                delete myresp.data;
+            }
+            /* Single Action on Google*/
+            , "S-google-v1" : function() {
+                myresp.messages.push({"speech":responses[0].text2speech});
+                myresp.data.google.richResponse.items.push({  "simpleResponse": {  "textToSpeech": responses[0].text2speech  } });
 
+                console.log(responses.length);
 
-            // Intestazione "Ecco una lista di eventi...."
-            myresp.speech=responses[0].text2speech;
-            // myresp.displayText=responses[0].text2speech;
+                var basicC = JSON.parse( JSON.stringify(jTemplates.get(`basicCard_${query.version||1}`))); //????
 
-            // messObj.speech=responses[0].text2speech;
+                basicC.title = responses[0].TITLE;
+                basicC.subtitle = responses[0].text2speech;
+                basicC.formattedText = responses[0].text2speech;
 
+                if (responses[0].IMGURL) {
 
-            // intestazione per Actions on google
-            /*Todo oggetto simpleresponse in google assistant, massimo DUE occorrenze. */
-
-            var AoGsimple = {  "simpleResponse": {  "textToSpeech": ""  } } ;
-            AoGsimple.simpleResponse.textToSpeech=responses[0].text2speech;
-            // è possibile aggiungere fino a DUE simpleresponse, per AOG
-            myresp.data.google.richResponse.items.push(AoGsimple);
-
-            console.log(responses.length);
-
-            var AogObj = (responses.length>1) ? {"carouselBrowse": { "items": [] } } : {};
-
-
-
-
-            responses.forEach( robj => {
-
-                // this object, inside myres.speech is text displayed by the DialogFlow iframe integrations (why different than debug chat?!?!)
-
-                myresp.speech+=robj.TITLE;
-                myresp.speech+=String.fromCharCode(13);  // carriage return / new line ---- not working...
-                myresp.speech+=robj.link;
-                myresp.speech+=String.fromCharCode(13);  // carriage return / new line ---- not working...
-
-
-
-                // myresp.displayText+=robj.TITLE;
-                // myresp.displayText+="\n";
-                // myresp.displayText+=robj.link;
-                // myresp.displayText+="\n";
-
-                // this object, pushed inside myres.messages are text displayed by the debug chat inside dialogflow console
-                var messObj = { "type": 0, "speech": "" };
+                    basicC.image.url = responses[0].IMGURL;
+                    basicC.image.accessibilityText = responses[0].IMGALTTXT;
+                }
+                else delete basicC.image;
 
 
-                messObj.speech+=robj.TITLE;
-                messObj.speech+=String.fromCharCode(13);  // carriage return / new line ---- not working...
-                messObj.speech+=robj.link;
-                myresp.messages.push(messObj);
+                if (responses[0].link) {
+                basicC.buttons[0].title = "Link";
+                basicC.buttons[0].openUrlAction.url = responses[0].link;
+                }
+                else delete basicC.buttons;
 
+                myresp.data.google.richResponse.items.push({"basicCard": basicC });
 
+            }
+            /* Multiple  Action on Google ver 1*/
+            , "M-google-v1" : function() {
+                var AogObj = {"carouselBrowse": { "items": [] } } ;
 
-                // To check if there is only "one" response (only one row identified as response inside xlsx fullfillment file)
-                // in case of just one, it should be changed in "CARD" and not carousel.
-                // Next Step....  should be managed with another parameter that states what kind of response we want ?
-
-                if (responses.length>1) {
-
-
-                    // carouselBrowse for AOG
-                    var carouselObj = JSON.parse( JSON.stringify(jTemplates.get(`carouselItem_${query.version}`)));
+                responses.forEach( robj => {
+                    let carouselObj = JSON.parse( JSON.stringify(jTemplates.get(`carouselItem_${query.version}`)));
 
                     carouselObj.title = robj.TITLE;
-                    carouselObj.description = robj.DESCRIP;
-                    carouselObj.footer = robj.FOOTER;
-                    carouselObj.image.url = robj.IMGURL;
-                    carouselObj.image.accessibilityText = robj.IMGALTTXT;
-                    carouselObj.openUrlAction.url = robj.link;
-                    carouselObj.openUrlAction.urlTypeHint = robj.URLHINT;
+                    carouselObj.description = robj.text2speech;
+                    carouselObj.footer = robj.FOOTER||"";
+                    carouselObj.image.url = robj.IMGURL||"";
+                    carouselObj.image.accessibilityText = robj.IMGALTTXT||"";
+                    carouselObj.openUrlAction.url = robj.link||"";
+                    carouselObj.openUrlAction.urlTypeHint = robj.URLHINT||"";
 
 
                     // Aggiungo allo scheletro i singoli ITEM una volta compilati.
                     AogObj.carouselBrowse.items.push(carouselObj);
-                }
-                else
-                {
-                    // basicCard for AOG
-                    var basicC = JSON.parse( JSON.stringify(jTemplates.get(`basicCard_${query.version}`)));
 
-                    basicC.title = robj.TITLE;
+                });
 
-
-                    basicC.image.url = robj.IMGURL;
-                    basicC.image.accessibilityText = robj.IMGALTTXT;
+                myresp.data.google.richResponse.items.push(AogObj);
 
 
 
-                    basicC.buttons[0].title = "ClickMe";
-                    basicC.buttons[0].openUrlAction.url = robj.link;
+            }
+            /* todo version 2 */
+            , "S-agent-v2" :  function() {}
+            , "M-agent-v2" : function() {}
+            , "S-google-v2" : function() {}
+            , "M-google-v2" : function() {}
+        };
 
-                    AogObj = {"basicCard": basicC };
-
-                }
-
-
-
-
-            }  );
-
-            myresp.data.google.richResponse.items.push(AogObj);
+        Fresp[myiden]();
 
 
-
-
-            // ??????????????? non funziona....
-
-            // myresp.speech=responses[0];
-            // myresp.displayText=responses[0];
-            // let msgT= myresp.messages.shift();
-            // let RichmsgT= myresp.data.google.richResponse.items.shift();
-            // myresp.messages=responses.map(resp => { var msg= Object.assign({}, msgT); msg.speech=resp; return msg; });
-            // myresp.data.google.richResponse.items=responses.map(resp => { var msg= Object.assign({}, RichmsgT);
-            //                              msg.simpleResponse.textToSpeech=resp; return msg; });
-
-            // ???????????????
-        }
-        else
-        {
-            myresp.speech=responses;
-            myresp.displayText=responses;
-            myresp.messages[0].speech=responses;
-            myresp.data.google.richResponse.items[0].simpleResponse.textToSpeech=responses;
-            // multiple
-
-        }
-        //Context in -out
-        myresp.data.contextOut=me.thereis(req,"body.result.contexts");
+        if (myresp.data && me.thereis(req,"body.result.contexts")) myresp.data.contextOut=me.thereis(req,"body.result.contexts");
 
         console.log(myresp);
 
@@ -389,8 +329,8 @@ var me = {
                     , "source" : req.body.originalDetectIntentRequest.source
                     , "version" : 2
                 }
-                : {"parameters": req.query, "test":1, "lang": "en" , "appcode": req.query.appcode};
-
+                : {"parameters": req.query, "test":1, "lang": "en" , "appcode": req.query.appcode
+                    , "version" : 1,  "source" : "google"};
 
     }
 
@@ -516,8 +456,23 @@ var me = {
             return {name, data: XLSX.utils.sheet_to_json(sheet, { raw: options.raw !== false})};
         });
     }
+    , replaceall: function (string, sfind, sreplace) {
+        let escF= function escapeRegExp(str) {
+            return str.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
+        };
+        return string.replace(new RegExp(escF(sfind), 'g'),sreplace);
+    }
+    , dyntempl: function (templateString, templateVars) {
 
+        // replace
+        const newT=replaceall(replaceall(templateString,"$[","${")  ,"]$","}$");
+        return new Function("return `"+newT +"`;").call(templateVars);
+    }
 
+/*
+*                     let mytempl=`{"type": "suggestion_chips","platform": "google", "lang": "$[this.locale]$", "suggestions": 0 }` ;
+ let dyntempl=function(templateString, templateVars){ return new Function("return `"+templateString +"`;").call(templateVars); }
+ */
 
 };
 
