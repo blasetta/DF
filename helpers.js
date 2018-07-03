@@ -465,7 +465,7 @@ var me = {
     , dyntempl: function (templateString, templateVars) {
 
         // replace
-        const newT=replaceall(replaceall(templateString,"$[","${")  ,"]$","}$");
+        const newT=(templateString.indexOf("$[")>=0) ? replaceall(replaceall(templateString,"$[","${")  ,"]$","}$") : templateString;
         return new Function("return `"+newT +"`;").call(templateVars);
     }
 
