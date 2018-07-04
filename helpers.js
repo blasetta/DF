@@ -81,7 +81,7 @@ var me = {
             (buffer) => {
                 // handle error todo loadApp reject(reason);
                 let workSheet = XLSX.read(buffer, {type: "buffer"});
-                apps[appcode]={};
+                apps[appcode]=appObj;
 
                 _.each(workSheet.Sheets,
                     (sheet, sheetname) => {
@@ -347,9 +347,12 @@ var me = {
      *  chiamato da h.CreateArchive(req, res);
      * */
 
-    , CreateArchive(req, res) {
-        var driveFid= req.query.driveid;
-        var driveUrl = `https://drive.google.com/uc?export=download&id=${driveFid}`;
+    , CreateArchive(req, res) { /*****/
+        var driveid= (req.query.driveid) ? req.query.driveid
+            : (req.query.appcode) ? apps[req.query.appcode].driveidArchive
+                : null;
+        if (!driveid) {res.send(`Ohi error! No file submitted!!!!`); return;}
+        var driveUrl = `https://drive.google.com/uc?export=download&id=${driveid}`;
 
 
         try {

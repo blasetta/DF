@@ -44,7 +44,7 @@ server.get('/test', (req, res) => {
 
 server.get('/reload', (req, res) => {
     h.reload(req,res).then( (val) => {
-        if (_.isString(val)) res.send(val); else res.json(val);
+        if (   typeof val === 'string' ) res.send(val); else res.json(val);
     });
 
 });
