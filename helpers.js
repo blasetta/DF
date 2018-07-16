@@ -22,9 +22,9 @@ var apps={};
 
 var me = {
 
-
+    Apps: apps
     /* RESPONSES FROM EXCEL FILES: Load responses for all apps from xslx files in apps[appcode].data */
-    loadAllApps: function() {
+    , loadAllApps: function() {
         /* Get apps Data  from drive */
         let driveAppid=config.apps_driveid;
 
@@ -140,7 +140,7 @@ var me = {
 
             if (!parms.length) return (_.isArray(workData)) ? workData  :  _.flatten(_.values(workData)) ;
 
-            let workparm=parms.shift(); if (_.isArray(workparm)) workparm=workparm[0];
+            let workparm=parms.shift(); if (_.isArray(workparm)) workparm=workparm[0]; // todo handle array
             // _.reduce(workData, (memo, group)=>[...memo, ...group],[])
             workData=(workparm=="any" || !workData[workparm]) ? getWokdataany(workData) : workData[workparm];
             return recurF();
@@ -162,29 +162,25 @@ var me = {
         if (!_.isArray(responses)) responses=[responses];
         let isMultiple= (responses.length>1);
 
-        /* null Response: fallback todo */
+        /*
+        * API test con meetup
+        *   let myURL=responses[0].APIUrl;
+        *   me.Apps[query.appcode]
+        *   const myCtx=_.extend({}, query.parameters , me.Apps[query.appcode]);
+        *   me.dyntempl(myURL,myCtx);
+        *
+        * */
 
-        /* Test */
-        //if (req.method=="GET" || !query.version) return me.getPromiseresolved(responses); // todo modify with method in or
-
-        /* find template out from jtemplates
-         * casi: array e singola risposta
-         * source - agent e google todo add others
-         *
-         * basicResponse_ contain the base response - type management source + array
-         * */
-
-        /* let template=   jTemplates.get(`response_${query.source}_${query.version}`); //response_agent_1
-         let templatedett=  (isArray) ?  jTemplates.get(`responseD_${query.source}_${query.version}`) :null; //responseD_agent_1
-         */
-        // To avoid appending of responses inside template object.
-        //let myresp =  JSON.parse( JSON.stringify(jTemplates.get(`basicResponse_${query.version||1}`)));
         let myresp =  jTemplates.get(`basicResponse_${query.version||1}`);
 
         myresp.speech=responses[0].text2speech;
         myresp.displayText=`${responses[0].text2speech} ${responses[0].link}`;
 
         let myiden=`${(isMultiple) ? "M":"S"}-${query.source||"agent"}-v${query.version||1}`;
+
+        let log= `***** query ${JSON.stringify(query,null, 2)} --> procedura ${myiden} *****`;
+
+        //responses[0].text2speech+=log;
 
 
 
@@ -196,20 +192,26 @@ var me = {
               /* minimal result DialogFlow text 1*/
               "S-agent-v1" : function() {
                   delete myresp.data;
-                  delete myresp.messages;
+                  myresp.messages.push({ "type": 0, "speech": myresp.displayText });
               }
             /* DialogFlow text multiple*/
             , "M-agent-v1" : function() {
 
                 //myresp.messages[0].speech=responses[0].text2speech;
-                let CompleteMsg="";
+                let DESCRIP= responses[0].DESCRIP;
+                if (DESCRIP && DESCRIP.indexOf("${")) DESCRIP=me.dyntempl(DESCRIP,{ "count": responses.length});
+                let CompleteMsg= DESCRIP||"";
+                let CompleteMsgText= CompleteMsg;
 
-                responses.forEach( robj => {
-                    CompleteMsg+=` ${robj.TITLE}: ${robj.text2speech}. 
+
+                _.each(responses, (robj, index)=> {
+                    CompleteMsg+=`  ${index+1}.  ${robj.TITLE}: ${robj.text2speech}. \n  \n 
 `;
-
+                    CompleteMsgText+=`  ${index+1}.  ${robj.TITLE}: ${robj.text2speech} - link: ${responses[0].IMGURL} \n  \n 
+`;
                 });
                 myresp.speech=CompleteMsg;
+                myresp.displayText=CompleteMsgText;
                 myresp.messages.push({ "type": 0, "speech": CompleteMsg });
                 delete myresp.data;
             }
@@ -218,7 +220,12 @@ var me = {
                 myresp.messages.push({"speech":responses[0].text2speech});
                 myresp.data.google.richResponse.items.push({  "simpleResponse": {  "textToSpeech": responses[0].text2speech  } });
 
-                console.log(responses.length);
+
+                if (responses[0].Suggestions) {
+                    const wsuggestions=responses[0].Suggestions.split(",").map( csug => { return {"title":csug.trim()}});
+                    myresp.data.google.richResponse.suggestions=wsuggestions;
+                }
+
 
                 var basicC = JSON.parse( JSON.stringify(jTemplates.get(`basicCard_${query.version||1}`))); //????
 
@@ -243,12 +250,37 @@ var me = {
                 myresp.data.google.richResponse.items.push({"basicCard": basicC });
 
             }
-            /* Multiple  Action on Google ver 1*/
+            /* Multiple  Action on Google ver.1*/
             , "M-google-v1" : function() {
+                console.log(" sono in google multiplo");
+
+
+                //myresp.messages.push({"speech":responses[0].text2speech});
+                if (responses.length>10) responses= _.first(responses, 10); // Carousel max 10
+
+                let DESCRIP=responses[0].DESCRIP || responses[0].text2speech;
+
+
+                if (DESCRIP && DESCRIP.indexOf("${"))
+                    DESCRIP=me.dyntempl(DESCRIP,{ "count": responses.length});
+
+                console.log(" DESCRIP "+ DESCRIP);
+
+                myresp.data.google.richResponse.items.push({  "simpleResponse": {  "textToSpeech": ` ${DESCRIP}`,  "displayText": ` ${DESCRIP}`  } });
+
+
+
+                if (responses[0].Suggestions) {
+                    const wsuggestions=responses[0].Suggestions.split(",").map( csug => { return {"title":csug.trim()}});
+                    myresp.data.google.richResponse.suggestions=wsuggestions;
+                }
+
+
+
                 var AogObj = {"carouselBrowse": { "items": [] } } ;
 
                 responses.forEach( robj => {
-                    let carouselObj = JSON.parse( JSON.stringify(jTemplates.get(`carouselItem_${query.version}`)));
+                    let carouselObj = jTemplates.get(`carouselItem_${query.version}`);
 
                     carouselObj.title = robj.TITLE;
                     carouselObj.description = robj.text2speech;
@@ -259,7 +291,7 @@ var me = {
                     carouselObj.openUrlAction.urlTypeHint = robj.URLHINT||"";
 
 
-                    // Aggiungo allo scheletro i singoli ITEM una volta compilati.
+                    // Addition of single Carousel Items
                     AogObj.carouselBrowse.items.push(carouselObj);
 
                 });
@@ -311,22 +343,26 @@ var me = {
                 : (req.body.queryResult) ? "V2"
                     : "V1"; // todo facebook
 
-        console.log(caso);
+        console.log(caso + "*************************");
+
+        let log=` ###request####  ${JSON.stringify(( req.body) ? req.body : req.query)} ### FINE request####  `;
+
+        console.log(log);
 
         return (caso==="V1") ? {
                 "parameters": _.extend(req.body.result.parameters,me.thereis(req,"body.result.contexts[0].parameters") ) //todo userdata
                 , "userquery": req.body.result.resolvedQuery
                 , "locale" : req.body.lang.substr(0, 2)
                 , "appcode": req.body.result.parameters.appcode
-                , "source" : req.body.result.source
+                , "source" : (me.thereis(req,"body.originalRequest.source")) ? req.body.originalRequest.source : req.body.result.source
                 , "version" : 1
             }
             : (caso==="V2") ? {
-                    "parameters": _.extend(req.body.queryResult.parameters,me.thereis(req,"req.body.queryResult.outputContexts[0].parameters") )
+                    "parameters": _.extend(req.body.queryResult.parameters,me.thereis(req,"body.queryResult.outputContexts[0].parameters") )
                     , "userquery": req.body.queryResult.queryText
                     , "locale" : req.body.queryResult.languageCode
                     , "appcode": req.body.result.parameters.agentcode
-                    , "source" : req.body.originalDetectIntentRequest.source
+                    , "source" : req.body.originalDetectIntentRequest.source // todo check
                     , "version" : 2
                 }
                 : {"parameters": req.query, "test":1, "lang": "en" , "appcode": req.query.appcode
@@ -468,7 +504,8 @@ var me = {
     , dyntempl: function (templateString, templateVars) {
 
         // replace
-        const newT=(templateString.indexOf("$[")>=0) ? replaceall(replaceall(templateString,"$[","${")  ,"]$","}$") : templateString;
+        let newT=(templateString.indexOf("$[")>=0) ? me.replaceall(me.replaceall(templateString,"$[","${")  ,"]$","}$") : templateString;
+        newT=me.replaceall(me.replaceall(newT,"${","${this."),"${this.this.", "${this.");
         return new Function("return `"+newT +"`;").call(templateVars);
     }
 
