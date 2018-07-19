@@ -13,7 +13,7 @@ const appDir = process.cwd();
 
 const xlsxp = require ('node-xlsx');
 const XLSX= require ('xlsx');
-const _ = require ('underscore');
+const  _ = require ('underscore');
 const jTemplates = require ('./jTemplates');
 //const uuidv4 = require('uuid/v4');
 
@@ -37,6 +37,7 @@ var me = {
                 config.APPS=JSON.parse(data.toString());
                 let myPromises=[];
                 for (var appcode in config.APPS) {
+                    config.APPS[appcode].appcode=appcode;
                     myPromises.push(
                         me.callPromise(me.loadApp,[appcode])
                     );
@@ -115,12 +116,12 @@ var me = {
         // all parameters or any
         let parms=apps[query.appcode].paramlist.map((val)=>query.parameters[val]||"any");
 
-        console.log(parms);
+        //console.log(parms);
 
         var workData=apps[query.appcode].data[query.locale||"en"];
 
         if (!workData) return "ERROR: no Data";
-        console.log(workData);
+        //console.log(workData);
 
         /* ignore current parmater */
         var getWokdataany= function(wData) {
@@ -157,6 +158,8 @@ var me = {
 
         let query=me.getmyQuery(req);
 
+        if (query.source ==="alexa") return me.getmyAlexa(req,query); //me.getPromiseresolved(jTemplates.get("alexaRes")); let responses= me.queryTexts(query); // Get responses Object
+
         // console.log(JSON.stringify(query));
         let responses= me.queryTexts(query); // Get responses Object
         if (!_.isArray(responses)) responses=[responses];
@@ -176,7 +179,8 @@ var me = {
         myresp.speech=responses[0].text2speech;
         myresp.displayText=`${responses[0].text2speech} ${responses[0].link}`;
 
-        let myiden=`${(isMultiple) ? "M":"S"}-${query.source||"agent"}-v${query.version||1}`;
+        let myiden=(query.source ==="alexa") ?`${(isMultiple) ? "M":"S"}-alexa-v${query.version||1}`
+          :  `${(isMultiple) ? "M":"S"}-${query.source||"agent"}-v${query.version||1}`;
 
         let log= `***** query ${JSON.stringify(query,null, 2)} --> procedura ${myiden} *****`;
 
@@ -327,6 +331,40 @@ var me = {
 
         return me.getPromiseresolved(myresp);
     }
+    , getmyAlexa: function(req,query) {
+
+        let AlexaResponse=jTemplates.get("alexaRes");
+        let applicationId=query.appcode, appcode=null;
+        let myConfig=_.findWhere(config.APPS, {"alexa.skillid": applicationId});
+        let responses=null;
+        if  (myConfig && myConfig.appcode) appcode=myConfig.appcode;
+        else return me.getPromiseresolved(AlexaResponse);
+        query.applicationId=applicationId; query.appcode=appcode;
+
+        /* 2. check if not ask  and give reply*/
+        if (query.intent!=="ask") {
+            // la query con l'intent con il primo parametro
+            query.parameters[myConfig.fieldslist[0]]=query.intent;
+
+        }
+
+        /* 1. transform query  variables slots*/
+        else {
+            query.parameters=_.mapObject(query.userquery, (obj) => obj.value||"any" );
+        }
+
+        /* 3. ask get replies (== altro) */
+        responses= me.queryTexts(query);
+        var mytext=(responses.length>0) ? responses[0].text2speech : "bohhhh!!! ma che stai a dì?";
+
+        /* todo: find frase per non found ... reprompt responsenotfound*/
+
+        AlexaResponse.response.outputSpeech.text=mytext;
+        AlexaResponse.response.reprompt.outputSpeech.text="Reprompt ...."+mytext;
+
+        return me.getPromiseresolved(AlexaResponse);
+
+    }
     // todo in ut
     , thereis: function(mainobj,objTxt) {
         try {
@@ -339,15 +377,16 @@ var me = {
         /* */
         let me=this;
         let caso=(req.method=="GET") ? "test"
+            : (req.body.session && req.body.session.application) ? "Alexa"
             : (req.body.result) ? "V1"
                 : (req.body.queryResult) ? "V2"
                     : "V1"; // todo facebook
 
-        console.log(caso + "*************************");
+        //console.log(caso + "*************************");
 
         let log=` ###request####  ${JSON.stringify(( req.body) ? req.body : req.query)} ### FINE request####  `;
 
-        console.log(log);
+        //console.log(log);
 
         return (caso==="V1") ? {
                 "parameters": _.extend(req.body.result.parameters,me.thereis(req,"body.result.contexts[0].parameters") ) //todo userdata
@@ -365,8 +404,19 @@ var me = {
                     , "source" : req.body.originalDetectIntentRequest.source // todo check
                     , "version" : 2
                 }
+                : (caso==="Alexa") ? {
+                        "parameters": {}
+                        , "userquery": me.thereis(req.body,"request.intent.slots")||null
+                        , "locale" : (req.body.request.locale||"en").slice(0,2).toLowerCase()
+                        , "appcode": req.body.session.application.applicationId
+                        , "source" : "alexa"
+                        , "intent" : me.thereis(req.body,"request.intent.name")||"AMAZON.welcome"
+                        , "version" : parseInt(req.body.version||"1")
+                    }
                 : {"parameters": req.query, "test":1, "lang": "en" , "appcode": req.query.appcode
                     , "version" : 1,  "source" : "google"};
+
+        //_.findWhere(config.APPS, {"alexa.skillid": "amzn1.ask.skill.58529b3e-0efb-4074-9915-8e6ee226dc39"})
 
     }
 

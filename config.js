@@ -1,7 +1,7 @@
 module.exports = {
     API_AI_CLIENT_ACCESS_TOKEN: '',
     SERVER_URL: "",
-    apps_driveid: "1YXwRAkyXOeS1mjK2Up1Y2i5_JtYb0iJn",
+    apps_driveid: "1JkuMr-ERMwl7Celv2LlgGWmyWuV4Knin"
     /*APPS: {
         ABC:  { driveid:"1r2YQp2THrb4I4ygRvwFzUGIs-mzBmpZE", appname:"GDG1", appdes:"ciao", locale:["en","it"]}
        ,ABC2: { driveid:"1r2YQp2THrb4I4ygRvwFzUGIs-mzBmpZE", appname:"GDG2", appdes:"ciao", locale:["en","it"]}

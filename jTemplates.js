@@ -4,6 +4,7 @@
  */
 const uuid = require('uuid/v4');
 const _ = require ('underscore');
+let standard_suggestions={};
 
 const T= {
     agent: {
@@ -68,26 +69,7 @@ const T= {
                 "action": "input.unknown",
                 "affectedContexts": [],
                 "parameters": [],
-                "messages": [
-                    {
-                        "type": 0,
-                        "lang": "en",
-                        "speech": [
-                            "I didn\u0027t get that. Can you say it again?",
-                            "I missed what you said. Say it again?",
-                            "Sorry, could you say that again?",
-                            "Sorry, can you say that again?",
-                            "Can you say that again?",
-                            "Sorry, I didn\u0027t get that.",
-                            "Sorry, what was that?",
-                            "One more time?",
-                            "What was that?",
-                            "Say that again?",
-                            "I didn\u0027t get that.",
-                            "I missed that."
-                        ]
-                    }
-                ],
+                "messages": [ ],
                 "defaultResponsePlatforms": {},
                 "speech": []
             }
@@ -283,7 +265,34 @@ const T= {
               ],
               "imageDisplayOptions": "WHITE"
             }
-          
+       ,alexaRes:{
+        "version": "1.0",
+        "sessionAttributes": {
+            "supportedHoriscopePeriods": {
+                "daily": true,
+                "weekly": false,
+                "monthly": false
+            }
+        },
+        "response": {
+            "outputSpeech": {
+                "type": "PlainText",
+                "text": "text"
+            },
+            "card": {
+                "type": "Simple",
+                "title": "Horoscope",
+                "content": "text"
+            },
+            "reprompt": {
+                "outputSpeech": {
+                    "type": "PlainText",
+                    "text": "reprompt"
+                }
+            },
+            "shouldEndSession": false
+        }
+    }
 
 
 
@@ -294,7 +303,7 @@ const T= {
 
 module.exports = {
   get: function(code) {
-    return Object.assign({}, T[code]);
+    return JSON.parse(JSON.stringify(T[code]));
       
   }
   , CreateArchive(workSheet) {
@@ -379,7 +388,7 @@ module.exports = {
 
                     if(!Array.isArray(jsnDarr[currLang])) { jsnDarr[currLang] = [] };                              
 
-                    var Workdetail =  JSON.parse(JSON.stringify(me.get('entities_def')));  
+                    var Workdetail =  me.get('entities_def');
                     Workdetail.value=erow.ent_val;
                     Workdetail.synonyms = erow["ent_syn_"+currLang].split(",");
                     jsnDarr[currLang].push(Workdetail);
@@ -395,33 +404,13 @@ module.exports = {
                         zip.file(`${agentname}/entities/${entitiName}_entries_${key}.json`, JSON.stringify(jsnDarr[key],null, 2));
                     });
 
-                    
-              
-
-                /*Aggiunto Saverio.*/
-
-
-                //Array detail of entity jsnDarr
-                /*Modifica Anto, da integrare con...*/
-                /*let Workdetail =sheetsRows.map( (row) => {
-
-                    let workEntity=me.get('entities_def'); //jsnD
-                    workEntity.value=row[0];
-                    workEntity.synonyms = row[1].split(",").map((item) => item.trim() );
-
-                    return workEntity;
-
-                });
-
-                     zip.file(`${agentname}/entities/${workHeader.name}_entries_en.json`, JSON.stringify(Workdetail, null, 2));*/
-                /*Modifica Anto, da integrare con...*/
 
                 break;}
 
             /* Default Welcome Intent - very simple - messages + suggestions (bottons in Assistant) */
 
             case (sheetName.search("WELCOMEINTENT-DEF")==0): {
-                let workJSON = JSON.parse(JSON.stringify(me.get('def_welcint')));
+                let workJSON = me.get('def_welcint');
 
                 workJSON.id = uuid();
 
@@ -465,12 +454,13 @@ module.exports = {
                         // replace
                         const newT = templateString.replace(new RegExp(escF("$["), 'g'), "${").replace(new RegExp(escF("]$"), 'g'), "}");
                         return new Function("return `" + newT + "`;").call(templateVars);
-                    }
+                    };
 
                     // Suggestions
                     _.each(suggestions, (sugroup,locale) => {
                         let mynewjson=JSON.parse(dyntempl(mytempl,{"locale":locale}));
                         mynewjson.suggestions=_.uniq(sugroup);
+                        standard_suggestions[locale]=mynewjson;
 
                         workJSON.responses[0].messages.push(mynewjson);
 
@@ -524,7 +514,7 @@ module.exports = {
                           if (!Array.isArray(finArr[currLang])) { finArr[currLang] = []; }
                          
                           //jsnObj = Object.assign({}, me.get('def_welcintuser'));
-                          jsnObj = JSON.parse(JSON.stringify(me.get('def_welcintuser'))); 
+                          jsnObj = me.get('def_welcintuser');
                          
                           jsnObj.id=uuid();
                           jsnObj.data.push( { "text": srow[key], "userDefined": false });
@@ -537,92 +527,96 @@ module.exports = {
                       zip.file(`${agentname}/intents/Default Welcome Intent_usersays_${key}.json`, "["+finArr[key].toString()+"]");                      
                 });
 
-
-                /* OLD no lang mgmt
-                let WorkJson=sheetsRows.map((sheetrow)=> {
-                    let jsnObj = me.get('def_welcintuser');
-                    jsnObj.id=uuid();  jsnObj.data[0].text = sheetrow;
-                    return jsnObj;
-                });
-                */
-
-
-
-                    //zip.file("${agentname}/intents/Default Welcome Intent_usersays_en.json", JSON.stringify(WorkJson,null,2));
-
                 break;}
+
+            /*fallback*/
+            case (sheetName.search("FALLBACK-DEF")==0): {
+                let workJSON = me.get('def_fallint');
+
+                workJSON.id = uuid();
+
+                // OLD without Lang mgmt
+                // workJSON.responses[0].messages[0].speech = sheetsRows;
+
+
+
+                // new WITH lang mgmt **********
+                var messageS = {}, suggestions={};
+
+                sheetsRows.forEach( (srow) => {
+                    //console.log(srow);
+
+                    Object.keys(srow).forEach(function (key) {
+                        // language todo check
+                        let currLang =key.slice(-2).toLowerCase();
+
+                        if (key.toLowerCase().indexOf("fallbacksentence")>=0) {
+
+                            if (!Array.isArray(messageS[currLang])) { messageS[currLang] = []; } // gestione nuovo oggetto, primo giro.
+                            messageS[currLang].push(srow[key]);
+                        }
+
+                        // Suggestions
+                        if (key.toLowerCase().indexOf("suggestions_")>=0) {
+                            const wsuggestions=srow[key].split(",").map( csug => { return {"title":csug.trim()}});
+                            suggestions[currLang]=[...suggestions[currLang]||[], ...wsuggestions];
+                        }
+
+
+                    });
+                });// end loop
+
+                if (!_.isEmpty(suggestions)) {
+                    let mytempl = `{"type": "suggestion_chips","platform": "google", "lang": "$[this.locale]$", "suggestions": 0 }`;
+                    let dyntempl = function (templateString, templateVars) {
+                        let escF = function escapeRegExp(str) {
+                            return str.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
+                        };
+                        // replace
+                        const newT = templateString.replace(new RegExp(escF("$["), 'g'), "${").replace(new RegExp(escF("]$"), 'g'), "}");
+                        return new Function("return `" + newT + "`;").call(templateVars);
+                    };
+
+                    // Suggestions
+                    _.each(suggestions, (sugroup, locale) => {
+                        let mynewjson = JSON.parse(dyntempl(mytempl, {"locale": locale}));
+                        mynewjson.suggestions = _.uniq(sugroup);
+                        standard_suggestions[locale] = mynewjson;
+
+                        workJSON.responses[0].messages.push(mynewjson);
+
+                    });
+                }
+
+
+                Object.keys(messageS).forEach(function (key) {
+
+                    var finalJson = {"type":0, "lang":"", "speech":[]};
+
+                    finalJson["lang"] = key;
+                    finalJson["speech"] = messageS[key];
+                    workJSON.responses[0].messages.push(finalJson);
+                });
+
+
+
+                zip.file(`${agentname}/intents/Default Fallback Intent.json`,  JSON.stringify(workJSON,null, 2) );
+                //console.log(JSON.stringify(workJSON, null, 2));
+
+                break;
+            }
+            /*fallback*/
 
             /* a sheet for any Intent - there are no possibilities of nested intent, at the moment
 
-             * todo va migliorato ed ampliato non poco
-             *
-             {
-             "id": "#GEN_UUID#",       ******
-             "name": "#intentName#",   ****** 1. prendi l'oggetto principale e aggiorni
-             "auto": true,
-             "contexts": [],
-             "responses": [             ****** repeat ed aggiorni con i dati di excel
-             {
-             "resetContexts": true,
-             "action": "#intentActionParam#",
-             "affectedContexts": [],
-             "parameters": [    ****** repeat ed aggiorni con i dati di excel
-             {
-             "id": "#GEN_UUID#",
-             "required": true,
-             "dataType": "@#refEntity#",
-             "name": "#parName#",
-             "value": "#parVal#",
-             "isList": false
-             }
-             ],
-             "messages": [],
-             "defaultResponsePlatforms": {},
-             "speech": []
-             }
-             ],
-             "priority": 500000,
-             "webhookUsed": true,
-             "webhookForSlotFilling": false,
-             "fallbackIntent": false,
-             "events": []
-             }
 
-             ****** secondo template
-             *
-             * uintent_uSays: {
-             "id": "#GEN_UUID#",
-             "data": [
-             {
-             "text": "#userText#",
-             "alias": "#parName#",
-             "meta": "@#refEntity#",
-             "userDefined": true
-             }
-             ],
-             "isTemplate": false,
-             "count": 0
-             }
-
-             parmDataType	parmName	parmVal	userSays
-             * sheetsRows lista semplice  heetsRows.map((sheetrow)=> {})
-             * JSON.stringify(workJSON,null,2));
-             */
-
-
-             /*
-                Edit, la parte USERSAYS sarà spostata in un case successivo, per la gestione del
-                Multi Lingua.
-
-                La seguente zsezione "INTENT-"  gestirà solo la creazione
-                dell'oggetto base per ogni intent (quindi <nomeIntent.json>)
              */
             case (sheetName.search("INTENT-")==0):{
 
              
 
 
-                var jsnIntent =   JSON.parse(JSON.stringify(me.get('uintent_h')));  
+                var jsnIntent =   me.get('uintent_h');
                 var intName =  sheetName.replace("INTENT-","");
                 
 
@@ -684,7 +678,7 @@ module.exports = {
                 }
 
                 case (sheetName.search("INTENTRESP-")==0): {
-                    let workJSON = JSON.parse(JSON.stringify(me.get("uintent_resp")));
+                    let workJSON = me.get("uintent_resp");
                     var intName =  sheetName.replace("INTENTRESP-","");
 
 
@@ -720,6 +714,12 @@ module.exports = {
                         workJSON.responses[0].messages.push(finalJson);
                     });
 
+                    // Standard suggestions
+
+                    if (!_.isEmpty(standard_suggestions)) _.each(standard_suggestions, ( sugg,locale) =>{
+                        workJSON.responses[0].messages.push(sugg);
+                    });
+
 
                     zip.file(`${agentname}/intents/${intName}.json`, JSON.stringify(workJSON,null,2));
 
@@ -741,7 +741,7 @@ module.exports = {
 
                     let lanVar = key.replace("userSays_","");
 
-                    let intUsay_obj = JSON.parse(JSON.stringify(me.get("uintent_uSaysV2")));
+                    let intUsay_obj = me.get("uintent_uSaysV2");
 
 
                     intUsay_obj.id=uuid();
@@ -766,12 +766,6 @@ module.exports = {
         };
     }); // end loop in  workSheet
 
-    // per ora il default fallback
-    var defFallBkJ = me.get('def_fallint');
-
-    defFallBkJ.id = uuid();
-
-        zip.file(`${agentname}/intents/Default Fallback Intent.json`,  JSON.stringify(defFallBkJ,null, 2) );
 
     // Fisso ?... no, da aggiungere relativo foglio excel con le diverse lingue.
         zip.file(`${agentname}/package.json`,  `{ "version": "1.0.0"}` );
