@@ -228,6 +228,10 @@ const T= {
                 } 
                 
             },
+            "telegram": { "text": "",
+                "parse_mode": "HTML",
+                "reply_markup": {}
+            },
             "contextOut": ""
             ,
             "source": "myurl.com"

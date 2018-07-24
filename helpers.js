@@ -77,8 +77,10 @@ var me = {
         // read data from stream
         // load info in newapp
         // load newapp in apps[appcode].data
+        let driveUrl = (appObj.gsheet) ? `https://docs.google.com/spreadsheets/d/e/${appObj.driveid}/pub?output=xlsx`
+            : `https://drive.google.com/uc?export=download&id=${appObj.driveid}`;
 
-        return me.getHttps(`https://drive.google.com/uc?export=download&id=${appObj.driveid}`).then(
+        return me.getHttps(driveUrl).then(
             (buffer) => {
                 // handle error todo loadApp reject(reason);
                 let workSheet = XLSX.read(buffer, {type: "buffer"});
@@ -179,8 +181,7 @@ var me = {
         myresp.speech=responses[0].text2speech;
         myresp.displayText=`${responses[0].text2speech} ${responses[0].link}`;
 
-        let myiden=(query.source ==="alexa") ?`${(isMultiple) ? "M":"S"}-alexa-v${query.version||1}`
-          :  `${(isMultiple) ? "M":"S"}-${query.source||"agent"}-v${query.version||1}`;
+        let myiden= `${(isMultiple) ? "M":"S"}-${query.source||"agent"}-v${query.version||1}`;
 
         let log= `***** query ${JSON.stringify(query,null, 2)} --> procedura ${myiden} *****`;
 
@@ -305,6 +306,16 @@ var me = {
 
 
             }
+            , "S-telegram-v1" :  function() {
+                let textTempl = `@${req.body.originalRequest.data.message.chat.username} Ecco le info richieste:\n<b>${robj.TITLE}</b>\n<i>${robj.DESCRIP}</i>\n<a href="${robj.IMGURL}">&#8205;</a>`;
+
+                let buttonTpl = { "inline_keyboard": [ [ { "text": "linkS", "url": robj.link }]] } ;
+
+
+                myresp.data.telegram.text=textTempl;
+                myresp.data.telegram.reply_markup=buttonTpl;
+            }
+            , "M-telegram-v1" :  function() {}
             /* todo version 2 */
             , "S-agent-v2" :  function() {}
             , "M-agent-v2" : function() {}
@@ -355,12 +366,20 @@ var me = {
 
         /* 3. ask get replies (== altro) */
         responses= me.queryTexts(query);
-        var mytext=(responses.length>0) ? responses[0].text2speech : "bohhhh!!! ma che stai a dì?";
+        let response=null;
+        if (responses.length>0) response= responses[0].text2speech;
+        else {
+            query.parameters[myConfig.fieldslist[0]]="AMAZON.FallbackIntent";
+            responses= me.queryTexts(query);
+            response=(responses.length>0) ? responses[0].text2speech :
+                "bohhhh!!! ma che stai a dì?";
+        }
+
 
         /* todo: find frase per non found ... reprompt responsenotfound*/
 
-        AlexaResponse.response.outputSpeech.text=mytext;
-        AlexaResponse.response.reprompt.outputSpeech.text="Reprompt ...."+mytext;
+        AlexaResponse.response.outputSpeech.text=response;
+        AlexaResponse.response.reprompt.outputSpeech.text="Reprompt ...."+response;
 
         return me.getPromiseresolved(AlexaResponse);
 
@@ -438,7 +457,9 @@ var me = {
             : (req.query.appcode) ? apps[req.query.appcode].driveidArchive
                 : null;
         if (!driveid) {res.send(`Ohi error! No file submitted!!!!`); return;}
-        var driveUrl = `https://drive.google.com/uc?export=download&id=${driveid}`;
+
+        var driveUrl = (req.query.gsheet) ? `https://docs.google.com/spreadsheets/d/e/${driveid}/pub?output=xlsx`
+            :`https://drive.google.com/uc?export=download&id=${driveid}`;
 
 
         try {
