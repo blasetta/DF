@@ -24,6 +24,14 @@ var me = {
 
     Apps: apps
     /* RESPONSES FROM EXCEL FILES: Load responses for all apps from xslx files in apps[appcode].data */
+
+    , getconfig: function() {
+
+        let driveUrl = `https://drive.google.com/uc?export=download&id=${config.apps_driveid}`;
+
+        return me.getHttps(driveUrl);
+
+    }
     , loadAllApps: function() {
         /* Get apps Data  from drive */
         let driveAppid=config.apps_driveid;
@@ -62,9 +70,16 @@ var me = {
 
     , reload:  function(req, res) {
         const appcode=req.query.appcode;
-        return me.callPromise(me.loadApp,[appcode]).then(
+        return  me.getconfig()
+            .then((data) => {config.APPS=JSON.parse(data.toString())})
+            .then((config) => me.callPromise(me.loadApp,[appcode]))
+            .then(
+                (data) => JSON.stringify(data)
+            );
+
+        /*me.callPromise(me.loadApp,[appcode]).then(
             (data) => JSON.stringify(data)
-        );
+        );*/
     }
 
     /******** Load responses for a single app in apps.data
@@ -91,7 +106,7 @@ var me = {
                         const sheetData = XLSX.utils.sheet_to_json(sheet, {raw: false});
                         const fieldslist=_.union(_.flatten(_.map(sheetData, (row) => _.keys(row)),true));
 
-                        /* Parameters must begin with P_*/
+                        /* Parameters must begin with p_*/
                         const paramlist = _.reject(fieldslist, (value) => (value.toUpperCase().indexOf("P_")!=0));
                         let locale = sheetname.slice(-2);
                         /* if no multicode --> default language*/
@@ -104,7 +119,7 @@ var me = {
 
                     });
                 apps[appcode].data = me.gruppa(apps[appcode].data, ["locale", ...apps[appcode].paramlist] );
-                resolve("OK"); // success
+                console.log("OK"); resolve("OK"); // success
 
             }
         );
