@@ -71,11 +71,15 @@ var me = {
     , reload:  function(req, res) {
         const appcode=req.query.appcode;
         return  me.getconfig()
-            .then((data) => {config.APPS=JSON.parse(data.toString())})
-            .then((config) => me.callPromise(me.loadApp,[appcode]))
+            .then((data) => {
+                config.APPS=JSON.parse(data.toString());
+                return me.callPromise(me.loadApp,[appcode])})
             .then(
-                (data) => JSON.stringify(data)
-            );
+                (data) => {
+                    return JSON.stringify(data)}
+            ).catch(function(e) {
+                console.log(e); // "oh, no!"
+            });
 
         /*me.callPromise(me.loadApp,[appcode]).then(
             (data) => JSON.stringify(data)
@@ -88,6 +92,7 @@ var me = {
     ,loadApp: function(appcode, resolve, reject) {
         var newapp={}, log;
         const appObj =config.APPS[appcode];
+        if (!appObj) {resolve("not found in config! ...nothing done! "); return;}
         // get the excel files
         // read data from stream
         // load info in newapp

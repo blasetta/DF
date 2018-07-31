@@ -3,6 +3,10 @@
 const config = require ('./config');
 const jTemplates = require ('./jTemplates');
 const h = require ('./helpers'); // Helpers Functions
+const fs = require('fs');
+//const http = require('http');
+const https = require('https');
+var privateKey, certificate, ca, credentials, httpsServer;
 
 var logLoad=h.loadAllApps();
 
@@ -10,8 +14,6 @@ var logLoad=h.loadAllApps();
 /* Libraries needed */
 const express = require('express');
 const bodyParser = require('body-parser');
-
-
 
 
 //returns the current working directory
@@ -26,6 +28,22 @@ server.use(bodyParser.urlencoded({
 }));
 
 server.use(bodyParser.json());
+
+if (config.https) {
+    // Certificate
+    privateKey = fs.readFileSync('/home/idcac/NODEROOT/SSL/privkey1.pem', 'utf8');
+    certificate = fs.readFileSync('/home/idcac/NODEROOT/SSL/cert1.pem', 'utf8');
+    ca = fs.readFileSync('/home/idcac/NODEROOT/SSL/chain1.pem', 'utf8');
+
+
+    credentials = {
+        key: privateKey,
+        cert: certificate,
+        ca: ca
+    };
+    httpsServer = https.createServer(credentials, server);
+
+}
 
 
 /* API  */
@@ -89,24 +107,31 @@ server.get('/newDFArchive', (req, res) => {
 });
 
 server.get('/reloadAll', (req, res) => {
+    res.send( "OK, sent"); // status is an array
     h.loadAllApps().then( (status) => {
-        res.send( "OK, all done"); // status is an array
+            console.log( "OK, done")
         }
         , reason => {
-        console.log(reason);
+            console.log(reason);
             res.send( `Error: ${reason}`);
+        });
+
+});
+
+
+if (config.https) {
+    httpsServer.listen((8443), () => {
+
+        console.log(
+            `Server is up and running on port: ${(  8443 )}`);
     });
+}
+else {
+    server.listen((process.env.PORT || 8000), () => {
 
-});
-
-
-
-
-
-server.listen((process.env.PORT || 8000), () => {
-
-    console.log(
-        `Server is up and running on port: ${(process.env.PORT || 8000)}` );
-});
+        console.log(
+            `Server is up and running on port: ${(process.env.PORT || 8000)}`);
+    });
+}
 
 
